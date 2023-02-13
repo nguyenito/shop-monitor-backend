@@ -4,6 +4,8 @@ const bodyParser = require('body-parser');
 const puppeteer = require('puppeteer');
 const { sendNotification } = require('./monitor.js');
 const axios = require('axios');
+const { logEvents, logWebContent } = require('./log_events');
+const { checkProductInStock } = require('./product_pattern');
 
 const port = process.env.PORT || 4000;
 
@@ -24,7 +26,8 @@ const JSON_SERVER = 'http://localhost:3001';
 const DATABASE_URL = `${JSON_SERVER}`;
 const PRODUCTS_DB_URL = `${DATABASE_URL}/products`;
 
-clients = [];
+let clients = [];
+let tracking_count = 1;
 
 async function fetchJSonData(url) {
   return axios
@@ -105,62 +108,58 @@ async function initBrowser() {
   return browser;
 }
 
-function checkUdemyExample(webContent) {
-  const itemDetailPattern = /class="(item-detail_.*?)"/g;
-  const soldOutPattern = /soldout/gi;
-  const itemMatch = [...webContent.matchAll(itemDetailPattern)];
-
-  let isSoldOut = false;
-  if (itemMatch != null) {
-    for (let i = 0; i < itemMatch.length; i++) {
-      matchContent = itemMatch[i][1];
-      if (soldOutPattern.test(matchContent)) {
-        isSoldOut = true;
-        break;
-      }
-    }
-  }
-  return isSoldOut;
-}
-
-let pages = [];
-async function checkProductStock(page, product) {
-  await page.goto(product.product_url, { timeout: 0 });
+let pages_info = [];
+async function checkProductStock(page_info, product) {
+  await page_info['page'].goto(product.product_url, { timeout: 0 });
+  await page_info['page'].reload({
+    waitUntil: ['networkidle0', 'domcontentloaded'],
+  });
 
   let evaluateDocument = null;
   while (evaluateDocument === null) {
-    evaluateDocument = await page.evaluate(() => {
+    evaluateDocument = await page_info['page'].evaluate(() => {
       if (document != null) return document.body.innerHTML;
       else return null;
     });
+    if (evaluateDocument.length === 0) evaluateDocument = null;
   }
 
   const content = evaluateDocument;
-  let isSoldOut = checkUdemyExample(content);
-  let newStatus = 'Unknown';
-
-  if (isSoldOut) {
-    newStatus = 'OutStock';
-  } else {
-    newStatus = 'InStock';
+  const newStatus = checkProductInStock(product.product_url, content);
+  logEvents(`Product id#${product.id} State: ${newStatus}`);
+  let logWebFileName = `product_${product.id}_${newStatus}.txt`;
+  logWebContent(logWebFileName, content);
+  if (newStatus === 'Unknown') {
+    logEvents(
+      `Product id#${product.id}. Unknown Pattern Is Detected.`,
+      'SILLY'
+    );
   }
 
   let isSendAlarm = false;
   if (product.status !== newStatus) {
-    console.log(`Product id#${product.id} State Changed. ALARM!!!`);
-    product.status = newStatus;
-    console.log(product);
+    let logMsg = `Product id#${product.id} State Changed From ${product.status} To ${newStatus}!!!`;
+    if (product.status === 'OutStock' && newStatus === 'InStock') {
+      logEvents(
+        `Product id#${product.id}. Alarm Event Detected. ALRMMMMMMMMM!!!`,
+        'ALARM'
+      );
+      isSendAlarm = true;
+    }
+    console.log(logMsg);
+    logEvents(logMsg);
 
+    product.status = newStatus;
+    updateProductDataToDb(product);
+  }
+  sendProductDataToAll(product, 'information');
+  if (isSendAlarm) {
     sendNotification(
       product.product_name,
       product.product_url,
       'nguyenphambaonguyen@gmail.com'
     );
-    updateProductDataToDb(product);
-    isSendAlarm = true;
-  }
-  sendProductDataToAll(product, 'information');
-  if (isSendAlarm) {
+
     const notificationData = await fetchNotificationInfo();
     updateAlarmCountDataToDb(notificationData['alarm_count'] + 1);
     sendProductDataToAll(product, 'alarm');
@@ -169,20 +168,27 @@ async function checkProductStock(page, product) {
 
 async function trackingProductsStock(browser) {
   console.log('Tracking Products In Stock...');
+  logEvents(`Tracking Products In Stock #${tracking_count++} times`);
   const products_data = await fetchJSonData(PRODUCTS_DB_URL);
-  if (products_data.length > pages.length) {
-    const noOfNewPage = products_data.length - pages.length;
+
+  if (products_data.length > pages_info.length) {
+    const noOfNewPage = products_data.length - pages_info.length;
     for (let i = 0; i < noOfNewPage; ++i) {
       const page = await browser.newPage();
-      pages.push(page);
+      console.log('Create new Page For Scraping #', i + 1);
+      pages_info.push({
+        page: page,
+        visited: false,
+        url: '',
+      });
     }
   }
-  console.log(`Number of Chromium Page is Running: ${pages.length}`);
+  console.log(`Number of Chromium Page is Running: ${pages_info.length}`);
   for (let i = 0; i < products_data.length; ++i) {
     const checkingProduct = Object.assign({}, products_data[i]);
     checkingProduct.status = 'Checking';
     await sendProductDataToAll(checkingProduct, 'information');
-    checkProductStock(pages[i], products_data[i]);
+    checkProductStock(pages_info[i], products_data[i]);
   }
 }
 

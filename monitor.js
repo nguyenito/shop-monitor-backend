@@ -17,7 +17,7 @@ async function sendNotification(productName, productLink, recvEmail) {
   let mailOptions = {
     from: 'Online Shop Monitor <npbnguyenbot@gmail.com>',
     to: recvEmail,
-    subject: `PRODUCT [${productName}] IS IN STOCK`,
+    subject: `Product [${productName}] Is In Stock`,
     text: textToSend,
   };
 
