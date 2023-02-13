@@ -28,7 +28,6 @@ const PRODUCTS_DB_URL = `${DATABASE_URL}/products`;
 
 let clients = [];
 let tracking_count = 1;
-
 async function fetchJSonData(url) {
   return axios
     .get(url)
@@ -110,18 +109,44 @@ async function initBrowser() {
 
 let pages_info = [];
 async function checkProductStock(page_info, product) {
-  await page_info['page'].goto(product.product_url, { timeout: 0 });
-  await page_info['page'].reload({
-    waitUntil: ['networkidle0', 'domcontentloaded'],
-  });
+  try {
+    await page_info['page'].goto(product.product_url, { timeout: 0 });
+  } catch (errr) {
+    logEvents(`Error ${errr} While Goto Page ${product.product_url}`, 'ERROR');
+    return;
+  }
+  try {
+    await page_info['page'].reload({
+      waitUntil: ['networkidle0', 'domcontentloaded'],
+    });
+  } catch (errr) {
+    logEvents(
+      `Error ${errr} While Reload Page ${product.product_url}`,
+      'ERROR'
+    );
+    return;
+  }
 
   let evaluateDocument = null;
-  while (evaluateDocument === null) {
+  try {
     evaluateDocument = await page_info['page'].evaluate(() => {
-      if (document != null) return document.body.innerHTML;
+      if (document !== null) return document.body.innerHTML;
       else return null;
     });
-    if (evaluateDocument.length === 0) evaluateDocument = null;
+  } catch (errr) {
+    logEvents(
+      `Error ${errr} While Query Document Page ${product.product_url}`,
+      'ERROR'
+    );
+    return;
+  }
+
+  if (evaluateDocument === null) {
+    logEvents(
+      `Empty query body inner HTML from ${product.product_url}`,
+      'ERROR'
+    );
+    return;
   }
 
   const content = evaluateDocument;
@@ -131,7 +156,7 @@ async function checkProductStock(page_info, product) {
   logWebContent(logWebFileName, content);
   if (newStatus === 'Unknown') {
     logEvents(
-      `Product id#${product.id}. Unknown Pattern Is Detected.`,
+      `Product id#${product.id}. Unknown Pattern Is Detected: ${product.product_url}`,
       'SILLY'
     );
   }
