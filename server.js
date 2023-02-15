@@ -21,7 +21,7 @@ app.get('/', (req, res) => {
   res.send('Welcom to Shop Monitor Service!');
 });
 
-const MONITOR_INTERVAL_SECONDS = 60;
+const MONITOR_INTERVAL_SECONDS = 120;
 const JSON_SERVER = 'http://localhost:3001';
 const DATABASE_URL = `${JSON_SERVER}`;
 const PRODUCTS_DB_URL = `${DATABASE_URL}/products`;
@@ -192,8 +192,9 @@ async function checkProductStock(page_info, product) {
 }
 
 async function trackingProductsStock(browser) {
-  console.log('Tracking Products In Stock...');
-  logEvents(`Tracking Products In Stock #${tracking_count++} times`);
+  const debugMsg = `Tracking Products In Stock #${tracking_count++} times`;
+  console.log(debugMsg);
+  logEvents(debugMsg);
   const products_data = await fetchJSonData(PRODUCTS_DB_URL);
 
   if (products_data.length > pages_info.length) {
