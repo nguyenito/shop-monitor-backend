@@ -22,7 +22,7 @@ app.get('/', (req, res) => {
 });
 
 const MONITOR_INTERVAL_SECONDS = 120;
-const JSON_SERVER = 'http://localhost:3001';
+const JSON_SERVER = 'https://shop-monitor-db-nguyenito.onrender.com';
 const DATABASE_URL = `${JSON_SERVER}`;
 const PRODUCTS_DB_URL = `${DATABASE_URL}/products`;
 
