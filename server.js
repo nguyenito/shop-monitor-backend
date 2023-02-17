@@ -21,7 +21,7 @@ app.get('/', (req, res) => {
   res.send('Welcom to Shop Monitor Service!');
 });
 
-const MONITOR_INTERVAL_SECONDS = 120;
+const MONITOR_INTERVAL_SECONDS = 30;
 const JSON_SERVER = 'https://shop-monitor-db-nguyenito.onrender.com';
 const DATABASE_URL = `${JSON_SERVER}`;
 const PRODUCTS_DB_URL = `${DATABASE_URL}/products`;
@@ -108,28 +108,38 @@ async function initBrowser() {
 }
 
 let pages_info = [];
-async function checkProductStock(page_info, product) {
+async function checkProductStock(pageInfo, product) {
+  await pageInfo.setViewport({ width: 1000, height: 1080 });
+
   try {
-    await page_info['page'].goto(product.product_url, { timeout: 0 });
+    await pageInfo.goto(product.product_url, {
+      timeout: 0,
+      waitUntil: ['networkidle0', 'domcontentloaded'],
+    });
   } catch (errr) {
     logEvents(`Error ${errr} While Goto Page ${product.product_url}`, 'ERROR');
     return;
   }
-  try {
-    await page_info['page'].reload({
-      waitUntil: ['networkidle0', 'domcontentloaded'],
-    });
-  } catch (errr) {
-    logEvents(
-      `Error ${errr} While Reload Page ${product.product_url}`,
-      'ERROR'
-    );
-    return;
-  }
+
+  // await pageInfo.screenshot({
+  //   path: `screenshot_product_${product.id}.jpg`,
+  // });
+
+  // try {
+  //   await pageInfo.reload({
+  //     waitUntil: ['networkidle0', 'domcontentloaded'],
+  //   });
+  // } catch (errr) {
+  //   logEvents(
+  //     `Error ${errr} While Reload Page ${product.product_url}`,
+  //     'ERROR'
+  //   );
+  //   return;
+  // }
 
   let evaluateDocument = null;
   try {
-    evaluateDocument = await page_info['page'].evaluate(() => {
+    evaluateDocument = await pageInfo.evaluate(() => {
       if (document !== null) return document.body.innerHTML;
       else return null;
     });
@@ -202,14 +212,10 @@ async function trackingProductsStock(browser) {
     for (let i = 0; i < noOfNewPage; ++i) {
       const page = await browser.newPage();
       console.log('Create new Page For Scraping #', i + 1);
-      pages_info.push({
-        page: page,
-        visited: false,
-        url: '',
-      });
+      pages_info.push(page);
     }
   }
-  console.log(`Number of Chromium Page is Running: ${pages_info.length}`);
+
   for (let i = 0; i < products_data.length; ++i) {
     const checkingProduct = Object.assign({}, products_data[i]);
     checkingProduct.status = 'Checking';
