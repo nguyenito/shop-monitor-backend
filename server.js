@@ -6,6 +6,7 @@ const { sendNotification } = require('./monitor.js');
 const axios = require('axios');
 const { logEvents, logWebContent } = require('./log_events');
 const { checkProductInStock } = require('./product_pattern');
+require('dotenv').config();
 
 const port = process.env.PORT || 4000;
 
@@ -21,10 +22,7 @@ app.get('/', (req, res) => {
   res.send('Welcom to Shop Monitor Service!');
 });
 
-const MONITOR_INTERVAL_SECONDS = 30;
-const JSON_SERVER = 'https://shop-monitor-db-nguyenito.onrender.com';
-const DATABASE_URL = `${JSON_SERVER}`;
-const PRODUCTS_DB_URL = `${DATABASE_URL}/products`;
+const PRODUCTS_DB_URL = `${process.env.DATABASE_URL}/products`;
 
 let clients = [];
 let tracking_count = 1;
@@ -49,13 +47,21 @@ async function updateProductDataToDb(product) {
 }
 
 async function fetchNotificationInfo() {
-  let url = `${DATABASE_URL}/notification_info/1`;
+  let url = `${process.env.DATABASE_URL}/notification_info/1`;
   return fetchJSonData(url);
 }
 
 async function updateAlarmCountDataToDb(alarmCount) {
-  let url = `${DATABASE_URL}/notification_info/1`;
+  let url = `${process.env.DATABASE_URL}/notification_info/1`;
   return axios.patch(url, { alarm_count: alarmCount }).catch((error) => {
+    console.log(error);
+    return;
+  });
+}
+
+async function updateNotifyToDb(productId, status) {
+  let url = `${PRODUCTS_DB_URL}/${productId}`;
+  return axios.patch(url, { notify: status }).catch((error) => {
     console.log(error);
     return;
   });
@@ -109,8 +115,6 @@ async function initBrowser() {
 
 let pages_info = [];
 async function checkProductStock(pageInfo, product) {
-  await pageInfo.setViewport({ width: 1000, height: 1080 });
-
   try {
     await pageInfo.goto(product.product_url, {
       timeout: 0,
@@ -188,14 +192,17 @@ async function checkProductStock(pageInfo, product) {
     updateProductDataToDb(product);
   }
   sendProductDataToAll(product, 'information');
+
+  const notificationData = await fetchNotificationInfo();
   if (isSendAlarm) {
     sendNotification(
       product.product_name,
       product.product_url,
-      'nguyenphambaonguyen@gmail.com'
+      notificationData['email']
     );
+    product.notify = true;
+    updateNotifyToDb(product.id, true);
 
-    const notificationData = await fetchNotificationInfo();
     updateAlarmCountDataToDb(notificationData['alarm_count'] + 1);
     sendProductDataToAll(product, 'alarm');
   }
@@ -229,7 +236,11 @@ async function startWatcher() {
   const browser = await initBrowser();
 
   await trackingProductsStock(browser);
-  setInterval(trackingProductsStock, MONITOR_INTERVAL_SECONDS * 1000, browser);
+  setInterval(
+    trackingProductsStock,
+    process.env.MONITOR_INTERVAL_SECONDS * 1000,
+    browser
+  );
 }
 
 startWatcher();
