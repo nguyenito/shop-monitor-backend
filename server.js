@@ -109,7 +109,10 @@ async function eventsHandler(res, response, next) {
 app.get('/events', eventsHandler);
 
 async function initBrowser() {
-  const browser = await puppeteer.launch({ headless: true });
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
   return browser;
 }
 
