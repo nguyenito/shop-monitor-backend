@@ -16,6 +16,8 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.listen(port, function () {
   console.log(`Server is running on port ${port}`);
+  const PRODUCTS_DB_URL = `${process.env.DATABASE_URL}/products`;
+  console.log(`PRODUCTS_DB_URL=${PRODUCTS_DB_URL}`);
 });
 
 app.get('/', (req, res) => {
