@@ -110,7 +110,6 @@ app.get('/events', eventsHandler);
 
 async function initBrowser() {
   const browser = await puppeteer.launch({
-    headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
   return browser;
